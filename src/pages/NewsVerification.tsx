@@ -20,7 +20,7 @@ const NewsVerification = () => {
     setFullAnalysis(null);
 
     try {
-      // Stage 1 Analysis
+      // Stage 1 Analysis with AI
       const result = await analyzeNewsStage1({ headline, content });
       setStage1Result(result);
 
@@ -33,10 +33,11 @@ const NewsVerification = () => {
       });
       setFullAnalysis(analysis);
 
-      toast.success("Analysis complete!");
+      toast.success("AI analysis complete!");
     } catch (error) {
       console.error("Analysis error:", error);
-      toast.error("Failed to analyze news. Please try again.");
+      const errorMessage = error instanceof Error ? error.message : "Failed to analyze news";
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
