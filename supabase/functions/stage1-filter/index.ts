@@ -1,119 +1,212 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+interface Stage1Request {
+  newsContent: string;
+  sourceUrl?: string;
+}
+
+interface Stage1Result {
+  decision: 'PASS' | 'BLOCK';
+  reason: string;
+  domainScore?: number;
+  domainStatus?: string;
+  domainReason?: string;
+  contentScore?: number;
+  overallAuthenticityScore?: number;
+  wordCount?: number;
+  preprocessingDecision?: string;
+  preprocessingReason?: string;
+  readyForStage2: boolean;
+}
+
+// Domain quality database (converted from Python domain_quality module)
+const DOMAIN_QUALITY_DB: Record<string, { score: number; status: string; reason: string; reference: string }> = {
+  // Trusted domains
+  'bbc.com': { score: 1.0, status: 'trusted', reason: 'Major international news broadcaster', reference: 'BBC News' },
+  'bbc.co.uk': { score: 1.0, status: 'trusted', reason: 'Major international news broadcaster', reference: 'BBC News' },
+  'cnn.com': { score: 0.95, status: 'trusted', reason: 'Major US news network', reference: 'CNN' },
+  'reuters.com': { score: 1.0, status: 'trusted', reason: 'International news agency', reference: 'Reuters' },
+  'apnews.com': { score: 1.0, status: 'trusted', reason: 'Associated Press news', reference: 'AP News' },
+  'nytimes.com': { score: 0.95, status: 'trusted', reason: 'Major US newspaper', reference: 'New York Times' },
+  'theguardian.com': { score: 0.95, status: 'trusted', reason: 'Major UK newspaper', reference: 'The Guardian' },
+  'washingtonpost.com': { score: 0.95, status: 'trusted', reason: 'Major US newspaper', reference: 'Washington Post' },
+  'abcnews.go.com': { score: 0.9, status: 'trusted', reason: 'Major US news network', reference: 'ABC News' },
+  'nbcnews.com': { score: 0.9, status: 'trusted', reason: 'Major US news network', reference: 'NBC News' },
+
+  // Questionable domains (examples)
+  'infowars.com': { score: 0.1, status: 'questionable', reason: 'Known for conspiracy theories', reference: 'Media Bias Fact Check' },
+  'breitbart.com': { score: 0.3, status: 'questionable', reason: 'Far-right bias and mixed factual reporting', reference: 'Media Bias Fact Check' },
+  'naturalnews.com': { score: 0.1, status: 'questionable', reason: 'Pseudoscience and conspiracy theories', reference: 'Media Bias Fact Check' },
+};
+
+const MIN_ARTICLE_LENGTH = 50;
+const MAX_ARTICLE_LENGTH = 10000;
+
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
+  if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { headline, content } = await req.json();
-    
-    console.log("Analyzing news:", { headline, content: content.substring(0, 100) });
+    const { newsContent, sourceUrl }: Stage1Request = await req.json();
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    if (!newsContent || !newsContent.trim()) {
+      return new Response(
+        JSON.stringify({ error: 'News content is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    const systemPrompt = `You are an expert news analyst specializing in viral content prediction. 
-Analyze the given news headline and content to determine its viral potential.
+    console.log('Stage 1 Filter - Processing article');
+    console.log('Source URL:', sourceUrl);
+    console.log('Content length:', newsContent.length);
 
-Evaluate based on:
-1. Emotional impact and engagement potential
-2. Newsworthiness and timeliness
-3. Shareability and discussion-worthiness
-4. Credibility indicators
-5. Target audience appeal
-
-Respond with a JSON object containing:
-- isViralWorthy: boolean (true if high viral potential)
-- reason: string (detailed explanation)
-- confidence: number (0.0 to 1.0)
-- category: string (Politics, Technology, Health, Entertainment, Sports, Business, Science, Other)
-- sentiment: string (Positive, Negative, Neutral, Mixed, High Impact)
-
-Be analytical but concise in your reasoning.`;
-
-    const userPrompt = `Headline: ${headline}
-
-Content: ${content}
-
-Analyze this news article and determine its viral potential.`;
-
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        response_format: { type: "json_object" },
-      }),
-    });
-
-    if (!response.ok) {
-      if (response.status === 429) {
-        console.error("Rate limit exceeded");
-        return new Response(
-          JSON.stringify({ error: "Rate limits exceeded, please try again later." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+    // Extract domain from URL if provided
+    let domain = 'user_input';
+    if (sourceUrl) {
+      try {
+        const url = new URL(sourceUrl);
+        domain = url.hostname.toLowerCase().replace(/^www\./, '');
+      } catch (e) {
+        console.log('Invalid URL, treating as user input');
       }
-      if (response.status === 402) {
-        console.error("Payment required");
-        return new Response(
-          JSON.stringify({ error: "Payment required, please add funds to your workspace." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
-      throw new Error(`AI gateway error: ${response.status}`);
     }
 
-    const data = await response.json();
-    const aiResponse = data.choices[0].message.content;
-    
-    console.log("AI Response:", aiResponse);
-    
-    let result;
-    try {
-      result = JSON.parse(aiResponse);
-    } catch (parseError) {
-      console.error("Failed to parse AI response:", parseError);
-      // Fallback response if JSON parsing fails
-      result = {
-        isViralWorthy: false,
-        reason: "Analysis completed but response format was unexpected. Please try again.",
-        confidence: 0.5,
-        category: "Other",
-        sentiment: "Neutral"
-      };
+    // STEP 1: Authenticity Filter - Check Source
+    const domainInfo = DOMAIN_QUALITY_DB[domain] || {
+      score: 0.5,
+      status: 'unknown',
+      reason: 'Domain not in database',
+      reference: 'Not verified'
+    };
+
+    console.log('Domain check:', domain, domainInfo);
+
+    // STEP 2: Authenticity Filter - Check Content
+    let contentScore = 0.5; // Base neutral score
+
+    // Check title caps ratio (if we can extract a title from first line or beginning)
+    const firstLine = newsContent.split('\n')[0] || newsContent.substring(0, 100);
+    const capsRatio = firstLine.split('').filter(c => c === c.toUpperCase() && c !== c.toLowerCase()).length / firstLine.length;
+    if (capsRatio > 0.5) {
+      contentScore = Math.max(0, contentScore - 0.2);
+      console.log('High caps ratio detected:', capsRatio);
     }
 
-    return new Response(JSON.stringify(result), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  } catch (error) {
-    console.error("Error in stage1-filter function:", error);
+    // Word count check
+    const wordCount = newsContent.trim().split(/\s+/).length;
+    console.log('Word count:', wordCount);
+
+    if (wordCount < 50) {
+      contentScore = Math.max(0, contentScore - 0.3);
+    }
+
+    // Calculate overall authenticity score (60% source + 40% content)
+    const overallAuthenticityScore = (domainInfo.score * 0.6) + (contentScore * 0.4);
+    console.log('Overall authenticity score:', overallAuthenticityScore);
+
+    // Check authenticity thresholds
+    if (overallAuthenticityScore < 0.3) {
+      return new Response(
+        JSON.stringify({
+          decision: 'BLOCK',
+          reason: 'Low authenticity score. Article likely unreliable.',
+          domainScore: domainInfo.score,
+          domainStatus: domainInfo.status,
+          domainReason: domainInfo.reason,
+          contentScore,
+          overallAuthenticityScore,
+          wordCount,
+          readyForStage2: false
+        } as Stage1Result),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (wordCount < 20) {
+      return new Response(
+        JSON.stringify({
+          decision: 'BLOCK',
+          reason: 'Content too short for reliable analysis.',
+          domainScore: domainInfo.score,
+          domainStatus: domainInfo.status,
+          domainReason: domainInfo.reason,
+          contentScore,
+          overallAuthenticityScore,
+          wordCount,
+          readyForStage2: false
+        } as Stage1Result),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // STEP 3: Preprocessor - Apply Processing Rules
+    let preprocessingDecision = 'PASS';
+    let preprocessingReason = 'Passed preprocessing';
+
+    if (wordCount < MIN_ARTICLE_LENGTH) {
+      preprocessingDecision = 'BLOCK';
+      preprocessingReason = 'Content too short';
+    } else if (wordCount > MAX_ARTICLE_LENGTH) {
+      preprocessingDecision = 'BLOCK';
+      preprocessingReason = 'Content too long';
+    } else if (!firstLine.trim()) {
+      preprocessingDecision = 'BLOCK';
+      preprocessingReason = 'Missing title or headline';
+    }
+
+    console.log('Preprocessing decision:', preprocessingDecision);
+
+    if (preprocessingDecision === 'BLOCK') {
+      return new Response(
+        JSON.stringify({
+          decision: 'BLOCK',
+          reason: preprocessingReason,
+          domainScore: domainInfo.score,
+          domainStatus: domainInfo.status,
+          domainReason: domainInfo.reason,
+          contentScore,
+          overallAuthenticityScore,
+          wordCount,
+          preprocessingDecision,
+          preprocessingReason,
+          readyForStage2: false
+        } as Stage1Result),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // PASS - Ready for Stage 2
+    console.log('Stage 1 PASSED - Article ready for Stage 2');
+
     return new Response(
-      JSON.stringify({ 
-        error: error instanceof Error ? error.message : "Unknown error occurred" 
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      JSON.stringify({
+        decision: 'PASS',
+        reason: 'Passed all Stage 1 filters',
+        domainScore: domainInfo.score,
+        domainStatus: domainInfo.status,
+        domainReason: domainInfo.reason,
+        contentScore,
+        overallAuthenticityScore,
+        wordCount,
+        preprocessingDecision,
+        preprocessingReason,
+        readyForStage2: true
+      } as Stage1Result),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error) {
+    console.error('Error in stage1-filter:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    return new Response(
+      JSON.stringify({ error: errorMessage }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });

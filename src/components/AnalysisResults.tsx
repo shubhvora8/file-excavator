@@ -1,90 +1,106 @@
-import { NewsAnalysis } from "@/types/news";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { calculateViralScore } from "@/services/newsAnalysisService";
-import {
-  BarChart,
-  CheckCircle,
-  TrendingUp,
-  Calendar,
-  Target,
-} from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Shield, CheckCircle, AlertTriangle, XCircle } from "lucide-react";
+import { NewsAnalysis } from "@/types/news";
+import { RelatabilityCompartment } from "./compartments/RelatabilityCompartment";
+import { LegitimacyCompartment } from "./compartments/LegitimacyCompartment";
+import { TrustworthinessCompartment } from "./compartments/TrustworthinessCompartment";
 
 interface AnalysisResultsProps {
-  analysis: NewsAnalysis;
+  analysis: NewsAnalysis | null;
+  isLoading: boolean;
 }
 
-export const AnalysisResults = ({ analysis }: AnalysisResultsProps) => {
-  const viralScore = calculateViralScore(analysis);
+export const AnalysisResults = ({ analysis, isLoading }: AnalysisResultsProps) => {
+  const getVerdictIcon = (verdict: string) => {
+    switch (verdict) {
+      case 'VERIFIED':
+        return <CheckCircle className="w-6 h-6 text-success" />;
+      case 'SUSPICIOUS':
+        return <AlertTriangle className="w-6 h-6 text-warning" />;
+      case 'FAKE':
+        return <XCircle className="w-6 h-6 text-destructive" />;
+      default:
+        return <Shield className="w-6 h-6 text-primary" />;
+    }
+  };
+
+  const getVerdictColor = (verdict: string) => {
+    switch (verdict) {
+      case 'VERIFIED': return 'success';
+      case 'SUSPICIOUS': return 'warning';
+      case 'FAKE': return 'destructive';
+      default: return 'secondary';
+    }
+  };
+
+  const getVerdictDescription = (verdict: string) => {
+    switch (verdict) {
+      case 'VERIFIED':
+        return 'This news content has been verified through multiple authoritative sources and appears to be legitimate.';
+      case 'SUSPICIOUS':
+        return 'This news content shows some inconsistencies and requires further verification before trust.';
+      case 'FAKE':
+        return 'This news content contains significant red flags and appears to be false or misleading.';
+      default:
+        return 'This news content requires manual review by experts for final verification.';
+    }
+  };
+
+  if (!analysis && !isLoading) {
+    return (
+      <div className="text-center py-12">
+        <Shield className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+        <h3 className="text-lg font-semibold mb-2">Ready for Analysis</h3>
+        <p className="text-muted-foreground">
+          Enter news content above to start the comprehensive verification process.
+        </p>
+      </div>
+    );
+  }
 
   return (
-    <Card className="p-6">
-      <div className="space-y-6">
-        <div>
-          <h3 className="text-xl font-bold flex items-center gap-2">
-            <BarChart className="h-5 w-5" />
-            Detailed Analysis
-          </h3>
-          <p className="text-sm text-muted-foreground mt-1">
-            Comprehensive viral potential breakdown
+    <div className="space-y-6">
+      {/* Overall Verdict Card */}
+      {analysis && (
+        <Card className="p-6 text-center bg-gradient-to-r from-card to-muted/20">
+          <div className="flex items-center justify-center gap-3 mb-4">
+            {getVerdictIcon(analysis.overallVerdict)}
+            <h2 className="text-2xl font-bold">{analysis.overallVerdict.replace('_', ' ')}</h2>
+          </div>
+
+          <Badge variant={getVerdictColor(analysis.overallVerdict) as any} className="mb-4 text-lg px-4 py-2">
+            Overall Score: {analysis.overallScore}%
+          </Badge>
+
+          <p className="text-muted-foreground max-w-2xl mx-auto">
+            {getVerdictDescription(analysis.overallVerdict)}
           </p>
-        </div>
 
-        <Separator />
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1">
-            <p className="text-sm text-muted-foreground flex items-center gap-2">
-              <Target className="h-4 w-4" />
-              Viral Score
-            </p>
-            <p className="text-3xl font-bold text-primary">{viralScore}/100</p>
+          <div className="mt-6">
+            <Progress value={analysis.overallScore} className="h-4" />
           </div>
+        </Card>
+      )}
 
-          <div className="space-y-1">
-            <p className="text-sm text-muted-foreground flex items-center gap-2">
-              <CheckCircle className="h-4 w-4" />
-              Status
-            </p>
-            <Badge
-              variant={analysis.isViralWorthy ? "default" : "secondary"}
-              className="text-sm"
-            >
-              {analysis.isViralWorthy ? "Viral Worthy" : "Standard"}
-            </Badge>
-          </div>
-        </div>
+      {/* Three Compartments Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <RelatabilityCompartment
+          data={analysis?.relatability || {} as any}
+          isLoading={isLoading}
+        />
 
-        <div className="space-y-3">
-          <div className="flex items-start gap-3">
-            <TrendingUp className="h-5 w-5 text-primary mt-0.5" />
-            <div>
-              <p className="font-medium">Category</p>
-              <p className="text-sm text-muted-foreground">{analysis.category}</p>
-            </div>
-          </div>
+        <LegitimacyCompartment
+          data={analysis?.legitimacy || {} as any}
+          isLoading={isLoading}
+        />
 
-          <div className="flex items-start gap-3">
-            <Calendar className="h-5 w-5 text-primary mt-0.5" />
-            <div>
-              <p className="font-medium">Analyzed</p>
-              <p className="text-sm text-muted-foreground">
-                {new Date(analysis.analyzedAt).toLocaleString()}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <Separator />
-
-        <div className="rounded-lg bg-muted p-4">
-          <p className="text-sm font-medium mb-2">Analysis Summary</p>
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            {analysis.reason}
-          </p>
-        </div>
+        <TrustworthinessCompartment
+          data={analysis?.trustworthiness || {} as any}
+          isLoading={isLoading}
+        />
       </div>
-    </Card>
+    </div>
   );
 };

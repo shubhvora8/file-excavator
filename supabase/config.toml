@@ -2,3 +2,6 @@ project_id = "tqencgqltxjetjliiryd"
 
 [functions.stage1-filter]
 verify_jwt = false
+
+[functions.verify-news]
+verify_jwt = false

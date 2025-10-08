@@ -1,18 +1,13 @@
-export interface Stage1Request {
-  headline: string;
-  content: string;
-}
-
-export interface Stage1Response {
-  isViralWorthy: boolean;
+export interface Stage1Result {
+  decision: 'PASS' | 'BLOCK';
   reason: string;
-  confidence: number;
-  category?: string;
-  sentiment?: string;
-}
-
-export interface AnalysisResult {
-  stage1: Stage1Response;
-  timestamp: string;
-  originalContent: Stage1Request;
+  domainScore?: number;
+  domainStatus?: string;
+  domainReason?: string;
+  contentScore?: number;
+  overallAuthenticityScore?: number;
+  wordCount?: number;
+  preprocessingDecision?: string;
+  preprocessingReason?: string;
+  readyForStage2: boolean;
 }

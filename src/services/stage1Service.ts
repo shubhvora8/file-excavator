@@ -1,35 +1,22 @@
-import { Stage1Request, Stage1Response } from "@/types/stage1";
 import { supabase } from "@/integrations/supabase/client";
+import { Stage1Result } from "@/types/stage1";
 
-export const analyzeNewsStage1 = async (
-  request: Stage1Request
-): Promise<Stage1Response> => {
-  try {
-    const { data, error } = await supabase.functions.invoke('stage1-filter', {
-      body: { 
-        headline: request.headline, 
-        content: request.content 
+export class Stage1Service {
+  static async filterNews(newsContent: string, sourceUrl?: string): Promise<Stage1Result> {
+    try {
+      const { data, error } = await supabase.functions.invoke('stage1-filter', {
+        body: { newsContent, sourceUrl }
+      });
+
+      if (error) {
+        console.error('Stage 1 filter error:', error);
+        throw new Error('Failed to run Stage 1 filter');
       }
-    });
 
-    if (error) {
-      console.error("Edge function error:", error);
-      throw new Error(error.message || "Failed to analyze news");
+      return data as Stage1Result;
+    } catch (error) {
+      console.error('Stage 1 service error:', error);
+      throw error;
     }
-
-    if (!data) {
-      throw new Error("No response from analysis service");
-    }
-
-    return {
-      isViralWorthy: data.isViralWorthy || false,
-      reason: data.reason || "Analysis completed",
-      confidence: data.confidence || 0.5,
-      category: data.category || "Other",
-      sentiment: data.sentiment || "Neutral",
-    };
-  } catch (error) {
-    console.error("Stage1 service error:", error);
-    throw error;
   }
-};
+}
