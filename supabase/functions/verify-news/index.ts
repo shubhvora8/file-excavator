@@ -27,12 +27,18 @@ serve(async (req) => {
     }
 
     // Fetch recent news from NewsAPI for cross-referencing
-    // Extract key terms for better search
-    const keyTerms = newsContent.match(/Israel|Gaza|Hamas|Trump|ceasefire|Biden|Ukraine|Russia|China/gi);
-    const searchTerms = keyTerms ? keyTerms[0] : newsContent.slice(0, 50);
-    const newsApiUrl = `https://newsapi.org/v2/everything?q=${encodeURIComponent(searchTerms)}&language=en&sortBy=publishedAt&pageSize=20&apiKey=${NEWSAPI_KEY}`;
+    // Extract multiple key terms and entities from the content
+    const words = newsContent.split(/\s+/).filter((word: string) => word.length > 3);
+    const commonWords = new Set(['this', 'that', 'with', 'from', 'have', 'been', 'were', 'said', 'says', 'will', 'would', 'could', 'their', 'there', 'about', 'after', 'before', 'which', 'other', 'some', 'what', 'than', 'them', 'these', 'those', 'when', 'where', 'while']);
+    const keywords = words
+      .filter((word: string) => !commonWords.has(word.toLowerCase()))
+      .slice(0, 5)
+      .join(' OR ');
     
-    console.log('NewsAPI search terms:', searchTerms);
+    const searchQuery = keywords || newsContent.slice(0, 100);
+    const newsApiUrl = `https://newsapi.org/v2/everything?q=${encodeURIComponent(searchQuery)}&language=en&sortBy=relevancy&pageSize=50&apiKey=${NEWSAPI_KEY}`;
+    
+    console.log('NewsAPI search query:', searchQuery);
     console.log('NewsAPI URL:', newsApiUrl.replace(NEWSAPI_KEY, 'REDACTED'));
     
     const newsApiResponse = await fetch(newsApiUrl);
