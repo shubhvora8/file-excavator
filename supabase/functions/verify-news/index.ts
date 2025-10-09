@@ -28,7 +28,8 @@ serve(async (req) => {
 
     // Fetch recent news from NewsAPI for cross-referencing
     // Extract key terms for better search
-    const searchTerms = newsContent.match(/Israel|Gaza|Hamas|Trump|ceasefire/gi)?.[0] || newsContent.slice(0, 50);
+    const keyTerms = newsContent.match(/Israel|Gaza|Hamas|Trump|ceasefire|Biden|Ukraine|Russia|China/gi);
+    const searchTerms = keyTerms ? keyTerms[0] : newsContent.slice(0, 50);
     const newsApiUrl = `https://newsapi.org/v2/everything?q=${encodeURIComponent(searchTerms)}&language=en&sortBy=publishedAt&pageSize=20&apiKey=${NEWSAPI_KEY}`;
     
     console.log('NewsAPI search terms:', searchTerms);
