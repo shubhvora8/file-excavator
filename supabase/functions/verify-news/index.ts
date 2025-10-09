@@ -27,15 +27,30 @@ serve(async (req) => {
     }
 
     // Fetch recent news from NewsAPI for cross-referencing
-    const newsApiResponse = await fetch(
-      `https://newsapi.org/v2/everything?q=${encodeURIComponent(newsContent.slice(0, 100))}&language=en&sortBy=publishedAt&pageSize=10&apiKey=${NEWSAPI_KEY}`
-    );
+    // Extract key terms for better search
+    const searchTerms = newsContent.match(/Israel|Gaza|Hamas|Trump|ceasefire/gi)?.[0] || newsContent.slice(0, 50);
+    const newsApiUrl = `https://newsapi.org/v2/everything?q=${encodeURIComponent(searchTerms)}&language=en&sortBy=publishedAt&pageSize=20&apiKey=${NEWSAPI_KEY}`;
+    
+    console.log('NewsAPI search terms:', searchTerms);
+    console.log('NewsAPI URL:', newsApiUrl.replace(NEWSAPI_KEY, 'REDACTED'));
+    
+    const newsApiResponse = await fetch(newsApiUrl);
     
     let newsApiArticles = [];
     if (newsApiResponse.ok) {
       const newsData = await newsApiResponse.json();
       newsApiArticles = newsData.articles || [];
       console.log(`Found ${newsApiArticles.length} related articles from NewsAPI`);
+      if (newsApiArticles.length > 0) {
+        console.log('First article:', {
+          title: newsApiArticles[0].title,
+          source: newsApiArticles[0].source.name,
+          url: newsApiArticles[0].url
+        });
+      }
+    } else {
+      const errorData = await newsApiResponse.json();
+      console.error('NewsAPI error:', newsApiResponse.status, errorData);
     }
 
     const systemPrompt = `You are an expert news verification AI. Analyze the provided news content and return a comprehensive verification report in the following JSON structure:
