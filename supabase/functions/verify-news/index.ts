@@ -37,11 +37,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    const AI_API_KEY = Deno.env.get('AI_API_KEY');
     const NEWSAPI_KEY = Deno.env.get('NEWSAPI_KEY');
 
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
+    if (!AI_API_KEY) {
+      throw new Error('AI_API_KEY not configured');
     }
     if (!NEWSAPI_KEY) {
       throw new Error('NEWSAPI_KEY not configured');
@@ -259,12 +259,12 @@ Respond in JSON format only:
   "overallAssessment": string
 }`;
 
-    console.log('Calling Lovable AI for verification...');
+    console.log('Calling AI for verification...');
 
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Authorization': `Bearer ${AI_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({

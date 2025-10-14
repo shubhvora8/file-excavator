@@ -7,7 +7,7 @@ export class NewsAnalysisService {
   static async analyzeNews(newsContent: string, sourceUrl?: string): Promise<NewsAnalysis> {
     console.log('Starting AI-powered news analysis...');
 
-    // Call Lovable AI edge function for verification
+    // Call AI edge function for verification
     const { data: aiVerification, error: aiError } = await supabase.functions.invoke('verify-news', {
       body: { newsContent, sourceUrl }
     });
