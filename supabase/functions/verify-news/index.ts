@@ -47,37 +47,42 @@ Deno.serve(async (req) => {
       throw new Error('NEWSAPI_KEY not configured');
     }
 
-    // Extract potential headline and keywords
-    const extractSearchTerms = (text: string): { headline: string, keywords: string, entities: string } => {
-      // Get first sentence which is often the headline
-      const firstLine = text.split('\n')[0].replace(/^['"]|['"]$/g, '').trim();
+    // Extract potential headline and keywords with improved strategy
+    const extractSearchTerms = (text: string): { headline: string, keywords: string, entities: string, broadQuery: string } => {
+      // Get first sentence which is often the headline (limit to 100 chars for better API results)
+      const firstLine = text.split('\n')[0].replace(/^['"]|['"]$/g, '').trim().substring(0, 100);
 
-      // Extract proper nouns (capitalized words/phrases)
-      const properNouns = text.match(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\b/g) || [];
-      const uniqueNouns = [...new Set(properNouns)].slice(0, 4).join(' ');
+      // Extract proper nouns (capitalized words/phrases) - improved pattern
+      const properNouns = text.match(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2}\b/g) || [];
+      const uniqueNouns = [...new Set(properNouns)].slice(0, 5).join(' ');
 
-      // Extract important keywords
+      // Extract important keywords with better filtering
       const words = text.toLowerCase().split(/\s+/);
-      const stopWords = ['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were', 'been', 'be', 'have', 'has', 'had', 'that', 'this', 'it', 'their'];
-      const keywords = words.filter(word => word.length > 5 && !stopWords.includes(word)).slice(0, 4).join(' ');
+      const stopWords = ['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were', 'been', 'be', 'have', 'has', 'had', 'that', 'this', 'it', 'their', 'said', 'would', 'could', 'should', 'will', 'can', 'may', 'might', 'must', 'shall'];
+      const meaningfulWords = words.filter(word => word.length > 4 && !stopWords.includes(word));
+      const keywords = meaningfulWords.slice(0, 5).join(' ');
 
-      return { headline: firstLine, keywords, entities: uniqueNouns };
+      // Create a broad query from most important terms
+      const topWords = meaningfulWords.slice(0, 3).join(' OR ');
+
+      return { headline: firstLine, keywords, entities: uniqueNouns, broadQuery: topWords };
     };
 
     const searchTerms = extractSearchTerms(newsContent);
     console.log('Search terms:', searchTerms);
 
-    // Try multiple search strategies for better results
+    // Try multiple search strategies for better results with broader queries
     const tryBBCSearch = async (): Promise<NewsArticle[]> => {
       const queries = [
-        searchTerms.headline.substring(0, 100), // Try headline first
+        searchTerms.keywords, // Try keywords first (most relevant)
         searchTerms.entities, // Try proper nouns
-        searchTerms.keywords // Try keywords as fallback
-      ].filter(q => q && q.length > 5);
+        searchTerms.broadQuery, // Try broad OR query
+        searchTerms.headline.substring(0, 80) // Try shorter headline
+      ].filter(q => q && q.length > 3);
 
       for (const query of queries) {
         console.log('Trying BBC search with:', query);
-        const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&sources=bbc-news&sortBy=relevancy&pageSize=10&language=en&apiKey=${NEWSAPI_KEY}`;
+        const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&sources=bbc-news&sortBy=publishedAt&pageSize=20&language=en&apiKey=${NEWSAPI_KEY}`;
 
         try {
           const response = await fetch(url);
@@ -87,6 +92,8 @@ Deno.serve(async (req) => {
               console.log('BBC search successful with query:', query, 'Found:', data.articles.length);
               return data.articles;
             }
+          } else {
+            console.log('BBC API response status:', response.status, await response.text());
           }
         } catch (error) {
           console.error('BBC search error:', error);
@@ -98,14 +105,15 @@ Deno.serve(async (req) => {
 
     const tryCNNSearch = async (): Promise<NewsArticle[]> => {
       const queries = [
-        searchTerms.headline.substring(0, 100),
+        searchTerms.keywords,
         searchTerms.entities,
-        searchTerms.keywords
-      ].filter(q => q && q.length > 5);
+        searchTerms.broadQuery,
+        searchTerms.headline.substring(0, 80)
+      ].filter(q => q && q.length > 3);
 
       for (const query of queries) {
         console.log('Trying CNN search with:', query);
-        const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&sources=cnn&sortBy=relevancy&pageSize=10&language=en&apiKey=${NEWSAPI_KEY}`;
+        const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&sources=cnn&sortBy=publishedAt&pageSize=20&language=en&apiKey=${NEWSAPI_KEY}`;
 
         try {
           const response = await fetch(url);
@@ -115,6 +123,8 @@ Deno.serve(async (req) => {
               console.log('CNN search successful with query:', query, 'Found:', data.articles.length);
               return data.articles;
             }
+          } else {
+            console.log('CNN API response status:', response.status);
           }
         } catch (error) {
           console.error('CNN search error:', error);
@@ -126,14 +136,15 @@ Deno.serve(async (req) => {
 
     const tryABCSearch = async (): Promise<NewsArticle[]> => {
       const queries = [
-        searchTerms.headline.substring(0, 100),
+        searchTerms.keywords,
         searchTerms.entities,
-        searchTerms.keywords
-      ].filter(q => q && q.length > 5);
+        searchTerms.broadQuery,
+        searchTerms.headline.substring(0, 80)
+      ].filter(q => q && q.length > 3);
 
       for (const query of queries) {
         console.log('Trying ABC News search with:', query);
-        const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&sources=abc-news&sortBy=relevancy&pageSize=10&language=en&apiKey=${NEWSAPI_KEY}`;
+        const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&sources=abc-news&sortBy=publishedAt&pageSize=20&language=en&apiKey=${NEWSAPI_KEY}`;
 
         try {
           const response = await fetch(url);
@@ -143,6 +154,8 @@ Deno.serve(async (req) => {
               console.log('ABC News search successful with query:', query, 'Found:', data.articles.length);
               return data.articles;
             }
+          } else {
+            console.log('ABC API response status:', response.status);
           }
         } catch (error) {
           console.error('ABC News search error:', error);
@@ -154,14 +167,15 @@ Deno.serve(async (req) => {
 
     const tryGuardianSearch = async (): Promise<NewsArticle[]> => {
       const queries = [
-        searchTerms.headline.substring(0, 100),
+        searchTerms.keywords,
         searchTerms.entities,
-        searchTerms.keywords
-      ].filter(q => q && q.length > 5);
+        searchTerms.broadQuery,
+        searchTerms.headline.substring(0, 80)
+      ].filter(q => q && q.length > 3);
 
       for (const query of queries) {
         console.log('Trying Guardian search with:', query);
-        const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&sources=the-guardian-uk&sortBy=relevancy&pageSize=10&language=en&apiKey=${NEWSAPI_KEY}`;
+        const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&sources=the-guardian-uk&sortBy=publishedAt&pageSize=20&language=en&apiKey=${NEWSAPI_KEY}`;
 
         try {
           const response = await fetch(url);
@@ -171,6 +185,8 @@ Deno.serve(async (req) => {
               console.log('Guardian search successful with query:', query, 'Found:', data.articles.length);
               return data.articles;
             }
+          } else {
+            console.log('Guardian API response status:', response.status);
           }
         } catch (error) {
           console.error('Guardian search error:', error);
@@ -228,13 +244,18 @@ ${articlesContext}
 IMPORTANT INSTRUCTIONS:
 1. For each source where articles were found, carefully compare the user's content with those articles:
    - Look for matching headlines, topics, events, people, places, and dates
-   - Even if wording differs, check if the core facts and story are the same
-   - If there's substantial overlap (>70% similar story/facts), mark that source as verified TRUE
-   - Calculate similarity score based on how much content overlaps
+   - Even if wording differs significantly, check if the core facts and story are the same
+   - Consider partial matches - if key facts align (people, places, events, numbers), there's likely a connection
+   - If there's ANY overlap (>50% similar story/facts/entities), mark that source as verified TRUE
+   - Calculate similarity score based on factual overlap, not exact wording
 
 2. If NO articles were found from a source, mark that source as verified=FALSE with 0 similarity
 
-3. Be generous with matching - news articles are often reworded but cover the same events
+3. Be VERY generous with matching:
+   - News articles are often heavily reworded but cover identical events
+   - Focus on factual elements: names, locations, dates, events, numbers
+   - A story about the same event from different angles should still match
+   - Even tangentially related coverage of the same topic counts as partial verification
 
 Respond in JSON format only:
 {

@@ -14,10 +14,14 @@ export class NewsAnalysisService {
 
     if (aiError) {
       console.error('AI verification failed:', aiError);
-      throw new Error('Failed to verify news content');
+      // Provide more specific error message
+      const errorMessage = aiError.message || 'Failed to verify news content';
+      throw new Error(`Verification error: ${errorMessage}`);
     }
 
-    console.log('AI verification result:', aiVerification);
+    if (!aiVerification) {
+      throw new Error('No verification data received from analysis service');
+    }
 
     // Extract AI analysis results
     const locations = aiVerification.locations || [];
