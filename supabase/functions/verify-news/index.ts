@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const AI_API_KEY = Deno.env.get('AI_API_KEY');
+    const AI_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     const NEWSAPI_KEY = Deno.env.get('NEWSAPI_KEY');
 
     if (!AI_API_KEY) {
