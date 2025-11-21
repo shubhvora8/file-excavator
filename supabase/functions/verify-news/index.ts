@@ -326,27 +326,29 @@ Found Articles (${articles.length} total):
 
 ${articlesContext}
 
-CRITICAL MATCHING INSTRUCTIONS:
-1. **MAIN PRIORITY: If articles were found, they are LIKELY RELATED** - Focus on TOPICAL MATCHING:
-   - If articles share the SAME MAIN TOPIC (e.g., both about Ukraine peace talks, both about Tanzania protests), that's verification
-   - Match on KEY ENTITIES: same people (Zelensky, Trump), same locations (Ukraine, Tanzania), same events
-   - News outlets cover the SAME STORY differently - they don't copy text, they report the same facts
-   - **THRESHOLD: >30% topical/entity overlap = VERIFIED TRUE**
+**CRITICAL VERIFICATION RULES - FOLLOW EXACTLY:**
 
-2. **BE EXTREMELY GENEROUS:**
-   - Different outlets report the SAME STORY with completely different wording
-   - Focus on: Who? What? Where? When? (entities, events, locations, timeframes)
-   - If the user's content and found article are about the SAME NEWS EVENT, mark as verified
-   - Similarity score should reflect TOPICAL RELEVANCE, not word-for-word matching
+STEP 1: Check if articles were found
+- If 0 articles found from a source → verified=FALSE, similarity=0
+- If 1+ articles found → Continue to STEP 2
 
-3. **Examples of what counts as a match:**
-   - User: "Trump peace plan for Ukraine" + Found article: "US-Russia Ukraine negotiations" = MATCH (same topic)
-   - User: "Tanzania election protests" + Found article: "Tanzania unrest after vote" = MATCH (same event)
-   - User mentions "Zelensky" + Found article mentions "Zelensky" + both about Ukraine = HIGH MATCH
+STEP 2: Check for topical match (DO NOT require exact wording)
+Check if user's content and found articles share ANY of these:
+✓ Same main subject/person (e.g., both mention "Zelensky" or "Trump" or "Tanzania")
+✓ Same location (e.g., both about "Ukraine" or "Tanzania" or "Gaza")  
+✓ Same type of event (e.g., both about "peace talks" or "protests" or "election")
+✓ Same timeframe (e.g., both about recent events in 2025)
 
-4. Only mark as verified=FALSE if:
-   - NO articles were found from that source, OR
-   - Found articles are about COMPLETELY DIFFERENT topics/events
+If YES to ANY of the above → **verified=TRUE with similarity 60-95** (higher if more overlap)
+If NO to ALL → verified=FALSE
+
+**EXAMPLES:**
+✅ User: "Zelensky peace plan" + Found: "Ukraine negotiations with Russia" = VERIFIED TRUE (same topic, location, people)
+✅ User: "Tanzania protests" + Found: "Tanzania election unrest" = VERIFIED TRUE (same country, event type)
+✅ User: "Trump policy on Ukraine" + Found: "US Ukraine foreign policy shift" = VERIFIED TRUE (same topic, country)
+❌ User: "Zelensky" + Found: "Brazil economy" = VERIFIED FALSE (completely different topics)
+
+**KEY POINT:** News outlets report the SAME STORY with different headlines and wording. Focus on WHAT the story is about, NOT how it's written.
 
 Respond in JSON format only:
 {
