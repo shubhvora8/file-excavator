@@ -326,21 +326,27 @@ Found Articles (${articles.length} total):
 
 ${articlesContext}
 
-IMPORTANT INSTRUCTIONS:
-1. For each source where articles were found, carefully compare the user's content with those articles:
-   - Look for matching headlines, topics, events, people, places, and dates
-   - Even if wording differs significantly, check if the core facts and story are the same
-   - Consider partial matches - if key facts align (people, places, events, numbers), there's likely a connection
-   - If there's ANY overlap (>50% similar story/facts/entities), mark that source as verified TRUE
-   - Calculate similarity score based on factual overlap, not exact wording
+CRITICAL MATCHING INSTRUCTIONS:
+1. **MAIN PRIORITY: If articles were found, they are LIKELY RELATED** - Focus on TOPICAL MATCHING:
+   - If articles share the SAME MAIN TOPIC (e.g., both about Ukraine peace talks, both about Tanzania protests), that's verification
+   - Match on KEY ENTITIES: same people (Zelensky, Trump), same locations (Ukraine, Tanzania), same events
+   - News outlets cover the SAME STORY differently - they don't copy text, they report the same facts
+   - **THRESHOLD: >30% topical/entity overlap = VERIFIED TRUE**
 
-2. If NO articles were found from a source, mark that source as verified=FALSE with 0 similarity
+2. **BE EXTREMELY GENEROUS:**
+   - Different outlets report the SAME STORY with completely different wording
+   - Focus on: Who? What? Where? When? (entities, events, locations, timeframes)
+   - If the user's content and found article are about the SAME NEWS EVENT, mark as verified
+   - Similarity score should reflect TOPICAL RELEVANCE, not word-for-word matching
 
-3. Be VERY generous with matching:
-   - News articles are often heavily reworded but cover identical events
-   - Focus on factual elements: names, locations, dates, events, numbers
-   - A story about the same event from different angles should still match
-   - Even tangentially related coverage of the same topic counts as partial verification
+3. **Examples of what counts as a match:**
+   - User: "Trump peace plan for Ukraine" + Found article: "US-Russia Ukraine negotiations" = MATCH (same topic)
+   - User: "Tanzania election protests" + Found article: "Tanzania unrest after vote" = MATCH (same event)
+   - User mentions "Zelensky" + Found article mentions "Zelensky" + both about Ukraine = HIGH MATCH
+
+4. Only mark as verified=FALSE if:
+   - NO articles were found from that source, OR
+   - Found articles are about COMPLETELY DIFFERENT topics/events
 
 Respond in JSON format only:
 {
