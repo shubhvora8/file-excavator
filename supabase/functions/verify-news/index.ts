@@ -93,20 +93,18 @@ Deno.serve(async (req) => {
     const searchTerms = extractSearchTerms(newsContent);
     console.log('Search terms:', searchTerms);
 
-    // Try multiple search strategies - First try WITHOUT source restrictions to test API
+    // Optimized search - try only best queries to reduce API calls
     const tryBBCSearch = async (): Promise<NewsArticle[]> => {
+      // Try only the 2 most effective queries to conserve API quota
       const queries = [
-        searchTerms.keywords, // Try keywords first (most relevant)
-        searchTerms.entities, // Try proper nouns
-        searchTerms.broadQuery, // Try broad OR query
-        searchTerms.headline.substring(0, 80) // Try shorter headline
+        searchTerms.entities && searchTerms.entities.length > 10 ? searchTerms.entities : null, // Proper nouns (most specific)
+        searchTerms.keywords // Keywords (good fallback)
       ].filter(q => q && q.length > 3);
 
       for (const query of queries) {
+        if (!query) continue;
         console.log('Trying BBC search with:', query);
-        // Try with domain filter instead of source (more reliable)
         const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)} AND (bbc.com OR bbc.co.uk)&sortBy=publishedAt&pageSize=20&language=en&apiKey=${NEWSAPI_KEY}`;
-        console.log('BBC search URL (API key hidden):', url.replace(NEWSAPI_KEY, 'HIDDEN'));
 
         try {
           const response = await fetch(url);
@@ -114,20 +112,22 @@ Deno.serve(async (req) => {
           
           console.log('BBC API response:', {
             status: response.status,
-            ok: response.ok,
             totalResults: data.totalResults,
             articlesCount: data.articles?.length || 0,
-            errorCode: data.code,
-            errorMessage: data.message
+            errorCode: data.code
           });
 
-          if (response.ok && data.status === 'ok') {
-            if (data.articles && data.articles.length > 0) {
-              console.log('BBC search successful with query:', query, 'Found:', data.articles.length);
-              return data.articles;
-            }
+          // Handle rate limiting
+          if (response.status === 429) {
+            throw new Error('RATE_LIMIT_EXCEEDED');
+          }
+
+          if (response.ok && data.status === 'ok' && data.articles && data.articles.length > 0) {
+            console.log('BBC search successful, found:', data.articles.length);
+            return data.articles;
           }
         } catch (error) {
+          if (error instanceof Error && error.message === 'RATE_LIMIT_EXCEEDED') throw error;
           console.error('BBC search error:', error);
         }
       }
@@ -137,13 +137,12 @@ Deno.serve(async (req) => {
 
     const tryCNNSearch = async (): Promise<NewsArticle[]> => {
       const queries = [
-        searchTerms.keywords,
-        searchTerms.entities,
-        searchTerms.broadQuery,
-        searchTerms.headline.substring(0, 80)
+        searchTerms.entities && searchTerms.entities.length > 10 ? searchTerms.entities : null,
+        searchTerms.keywords
       ].filter(q => q && q.length > 3);
 
       for (const query of queries) {
+        if (!query) continue;
         console.log('Trying CNN search with:', query);
         const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)} AND cnn.com&sortBy=publishedAt&pageSize=20&language=en&apiKey=${NEWSAPI_KEY}`;
 
@@ -154,15 +153,19 @@ Deno.serve(async (req) => {
           console.log('CNN API response:', {
             status: response.status,
             totalResults: data.totalResults,
-            articlesCount: data.articles?.length || 0,
-            errorMessage: data.message
+            articlesCount: data.articles?.length || 0
           });
 
+          if (response.status === 429) {
+            throw new Error('RATE_LIMIT_EXCEEDED');
+          }
+
           if (response.ok && data.status === 'ok' && data.articles && data.articles.length > 0) {
-            console.log('CNN search successful with query:', query, 'Found:', data.articles.length);
+            console.log('CNN search successful, found:', data.articles.length);
             return data.articles;
           }
         } catch (error) {
+          if (error instanceof Error && error.message === 'RATE_LIMIT_EXCEEDED') throw error;
           console.error('CNN search error:', error);
         }
       }
@@ -172,13 +175,12 @@ Deno.serve(async (req) => {
 
     const tryABCSearch = async (): Promise<NewsArticle[]> => {
       const queries = [
-        searchTerms.keywords,
-        searchTerms.entities,
-        searchTerms.broadQuery,
-        searchTerms.headline.substring(0, 80)
+        searchTerms.entities && searchTerms.entities.length > 10 ? searchTerms.entities : null,
+        searchTerms.keywords
       ].filter(q => q && q.length > 3);
 
       for (const query of queries) {
+        if (!query) continue;
         console.log('Trying ABC News search with:', query);
         const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)} AND abcnews.go.com&sortBy=publishedAt&pageSize=20&language=en&apiKey=${NEWSAPI_KEY}`;
 
@@ -192,11 +194,16 @@ Deno.serve(async (req) => {
             articlesCount: data.articles?.length || 0
           });
 
+          if (response.status === 429) {
+            throw new Error('RATE_LIMIT_EXCEEDED');
+          }
+
           if (response.ok && data.status === 'ok' && data.articles && data.articles.length > 0) {
-            console.log('ABC News search successful with query:', query, 'Found:', data.articles.length);
+            console.log('ABC News search successful, found:', data.articles.length);
             return data.articles;
           }
         } catch (error) {
+          if (error instanceof Error && error.message === 'RATE_LIMIT_EXCEEDED') throw error;
           console.error('ABC News search error:', error);
         }
       }
@@ -206,13 +213,12 @@ Deno.serve(async (req) => {
 
     const tryGuardianSearch = async (): Promise<NewsArticle[]> => {
       const queries = [
-        searchTerms.keywords,
-        searchTerms.entities,
-        searchTerms.broadQuery,
-        searchTerms.headline.substring(0, 80)
+        searchTerms.entities && searchTerms.entities.length > 10 ? searchTerms.entities : null,
+        searchTerms.keywords
       ].filter(q => q && q.length > 3);
 
       for (const query of queries) {
+        if (!query) continue;
         console.log('Trying Guardian search with:', query);
         const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)} AND (theguardian.com OR guardian.co.uk)&sortBy=publishedAt&pageSize=20&language=en&apiKey=${NEWSAPI_KEY}`;
 
@@ -226,11 +232,16 @@ Deno.serve(async (req) => {
             articlesCount: data.articles?.length || 0
           });
 
+          if (response.status === 429) {
+            throw new Error('RATE_LIMIT_EXCEEDED');
+          }
+
           if (response.ok && data.status === 'ok' && data.articles && data.articles.length > 0) {
-            console.log('Guardian search successful with query:', query, 'Found:', data.articles.length);
+            console.log('Guardian search successful, found:', data.articles.length);
             return data.articles;
           }
         } catch (error) {
+          if (error instanceof Error && error.message === 'RATE_LIMIT_EXCEEDED') throw error;
           console.error('Guardian search error:', error);
         }
       }
@@ -238,13 +249,36 @@ Deno.serve(async (req) => {
       return [];
     };
 
-    console.log('Fetching from BBC, CNN, ABC News, and Guardian with multiple strategies...');
-    const [bbcArticles, cnnArticles, abcArticles, guardianArticles] = await Promise.all([
-      tryBBCSearch(),
-      tryCNNSearch(),
-      tryABCSearch(),
-      tryGuardianSearch()
-    ]);
+    console.log('Fetching from BBC, CNN, ABC News, and Guardian...');
+    
+    let bbcArticles: NewsArticle[] = [];
+    let cnnArticles: NewsArticle[] = [];
+    let abcArticles: NewsArticle[] = [];
+    let guardianArticles: NewsArticle[] = [];
+    
+    try {
+      [bbcArticles, cnnArticles, abcArticles, guardianArticles] = await Promise.all([
+        tryBBCSearch(),
+        tryCNNSearch(),
+        tryABCSearch(),
+        tryGuardianSearch()
+      ]);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'RATE_LIMIT_EXCEEDED') {
+        console.error('NewsAPI rate limit exceeded');
+        return new Response(
+          JSON.stringify({
+            error: 'NewsAPI rate limit exceeded. Please wait 12-24 hours or upgrade your NewsAPI plan.',
+            details: 'Free tier allows 100 requests per 24 hours. Consider upgrading at https://newsapi.org/pricing'
+          }),
+          {
+            status: 429,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        );
+      }
+      throw error;
+    }
 
     const articles: NewsArticle[] = [...bbcArticles, ...cnnArticles, ...abcArticles, ...guardianArticles];
 
