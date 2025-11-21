@@ -14,6 +14,12 @@ export class NewsAnalysisService {
 
     if (aiError) {
       console.error('AI verification failed:', aiError);
+      
+      // Check if it's a rate limit error
+      if (aiError.message?.includes('rate limit') || aiError.message?.includes('429')) {
+        throw new Error('NewsAPI rate limit exceeded. Please try again in 12-24 hours or contact support to upgrade your API plan.');
+      }
+      
       // Provide more specific error message
       const errorMessage = aiError.message || 'Failed to verify news content';
       throw new Error(`Verification error: ${errorMessage}`);
